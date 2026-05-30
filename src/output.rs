@@ -1,5 +1,3 @@
-//! bedGraph emission: per-chromosome writer, run-length merge, Python `{:g}` formatter.
-
 use std::io::Write;
 
 use rsomics_bbi::BigWig;
@@ -9,10 +7,6 @@ use crate::CompareOpts;
 use crate::bins::binned_values;
 use crate::operation::get_ratio;
 
-/// Write one chromosome's combined bins, mirroring deeptools
-/// `writeBedGraph_worker`: skip-zero-over-zero, then either fixedStep (every
-/// bin) or run-length merge (adjacent equal values; NaN bins never written; a
-/// trailing run whose value is 0 or NaN is also not written).
 pub(crate) fn write_chrom(
     out: &mut impl Write,
     a: &mut BigWig,
@@ -37,8 +31,7 @@ pub(crate) fn write_chrom(
         let c1 = cov1[i];
         let c2 = cov2[i];
 
-        // skipZeroOverZero: sum of the two coverage values == 0, before
-        // pseudocount. NaN never equals 0 so a NaN bin is not skipped here.
+        // sum == 0 before pseudocount; NaN never equals 0 so NaN bins are not skipped
         if opts.skip_zero_over_zero && (c1 + c2) == 0.0 {
             prev = None;
             continue;
@@ -95,16 +88,15 @@ fn write_line(out: &mut impl Write, chrom: &str, start: u64, end: u64, value: f6
     writeln!(out, "{chrom}\t{start}\t{end}\t{s}").map_err(RsomicsError::Io)
 }
 
-/// deeptools merges on Python `==`, which is exact float equality (NaN never
-/// equal). We mirror that: bit-exact equality, NaN != NaN.
+// deeptools merges on Python ==: exact float equality, NaN != NaN
 fn bits_eq(a: f64, b: f64) -> bool {
     a == b
 }
 
-/// Format a float like Python's `{:g}` (6 significant digits, trailing zeros stripped).
+/// Python `{:g}`: 6 significant digits, trailing zeros stripped.
 pub(crate) fn format_g(v: f64) -> String {
     if v == 0.0 {
-        // {:g} prints negative-zero as "-0"; numpy/deeptools emit "0".
+        // {:g} renders negative-zero as "-0"; deeptools emits "0"
         return "0".to_owned();
     }
     if v.is_nan() {
@@ -116,14 +108,8 @@ pub(crate) fn format_g(v: f64) -> String {
     python_g(v)
 }
 
-/// Python `{:g}`: 6 significant digits, switching to exponent form outside
-/// `1e-4..1e16`, with trailing zeros (and a bare trailing `.`) stripped.
-///
-/// The decimal exponent is taken from a 6-sig-fig scientific render
-/// (`{:.5e}`) rather than `log10().floor()` — that render already rounds to
-/// the precision Python uses, so its exponent is the post-rounding one (a
-/// value like `999999.6` rounds up to `1e6`, which `log10().floor()` would
-/// mis-bucket as exponent 5).
+// Exponent from {:.5e} rather than log10().floor() — the scientific render
+// already applies Python's rounding, so 999999.6 correctly yields exponent 6.
 fn python_g(v: f64) -> String {
     let sci = format!("{v:.5e}");
     let (_, exp_str) = sci.split_once('e').unwrap();
@@ -142,9 +128,7 @@ fn python_g(v: f64) -> String {
     s.to_owned()
 }
 
-/// Rust's `{:e}` gives e.g. `1.5e2` / `1e-5`; Python `{:g}` wants `1.5e+02` /
-/// `1e-05` (sign always present, exponent ≥ 2 digits) with mantissa zeros
-/// stripped.
+// Rust {:.5e} → 1.5e2; Python {:g} → 1.5e+02 (sign + min-2-digit exponent)
 fn normalise_exponential(s: &str) -> String {
     let (mantissa, exp) = s.split_once('e').unwrap();
     let mantissa = if mantissa.contains('.') {

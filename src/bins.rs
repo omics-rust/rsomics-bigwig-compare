@@ -1,12 +1,8 @@
-//! Chromosome intersection and per-bin averaging from bigWig.
-
 use std::collections::HashMap;
 
 use rsomics_bbi::BigWig;
 use rsomics_common::{Result, RsomicsError};
 
-/// Chromosomes present in both files, in the first file's order.
-/// Length is the smaller of the two when they disagree (deeptools' `min`).
 pub(crate) fn common_chroms(a: &BigWig, b: &BigWig) -> Vec<(String, u32)> {
     let b_lens: HashMap<&str, u32> = b.chroms().collect();
     a.chroms()
@@ -18,11 +14,6 @@ pub(crate) fn common_chroms(a: &BigWig, b: &BigWig) -> Vec<(String, u32)> {
         .collect()
 }
 
-/// Per-bin average over `[0, len)`, mirroring deeptools `getCoverageFromBigwig`.
-///
-/// Per-base values are NaN→0 when `missing_as_zero`; each bin is a
-/// `bin_size`-base tile (last tile may be shorter), averaged with numpy.mean
-/// semantics (an all-NaN tile without `missing_as_zero` yields NaN).
 pub(crate) fn binned_values(
     bw: &mut BigWig,
     chrom: &str,
@@ -41,8 +32,6 @@ pub(crate) fn binned_values(
     while x < per_base.len() {
         let end = (x + bs).min(per_base.len());
         let slice = &per_base[x..end];
-        // deeptools zero-fills NaN bases before the mean when missing_as_zero;
-        // otherwise numpy.mean of a slice containing any NaN is itself NaN.
         let mut sum = 0.0f64;
         let mut any_nan = false;
         for &v in slice {

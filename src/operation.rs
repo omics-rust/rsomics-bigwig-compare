@@ -1,5 +1,3 @@
-//! Per-bin combination: `Operation` enum and `getRatio` kernel.
-
 use crate::CompareOpts;
 
 /// How two scaled per-bin coverage values are combined.
@@ -36,13 +34,11 @@ impl std::str::FromStr for Operation {
 }
 
 impl Operation {
-    /// Whether this op is ratio-family (pseudocount applies only to these).
     pub(crate) fn is_ratio(self) -> bool {
         matches!(self, Self::Log2 | Self::Ratio | Self::ReciprocalRatio)
     }
 }
 
-/// deeptools `getRatio`: scale, NaN-propagate, then combine.
 pub(crate) fn get_ratio(cov1: f64, cov2: f64, opts: &CompareOpts) -> f64 {
     let v1 = opts.scale_factors[0] * cov1;
     let v2 = opts.scale_factors[1] * cov2;
